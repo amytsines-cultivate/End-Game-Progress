@@ -4,339 +4,84 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GOAL SHEET PROGRESS</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        input[type=number]::-webkit-inner-spin-button, 
-        input[type=number]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; 
-            margin: 0; 
-        }
-    </style>
 </head>
-<body class="bg-slate-50 text-slate-800">
+<body class="bg-slate-50 p-4">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+        const { useState, useEffect } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } = Recharts;
 
-        const App = () => {
-            // Initialize state from LocalStorage if available, otherwise use empty strings
-            const loadStoredData = () => {
-                const saved = localStorage.getItem('goalSheetData');
-                if (saved) {
-                    return JSON.parse(saved);
-                }
-                return {
-                    projection: '',
-                    qt1: '',
-                    qt2: '',
-                    qt3: '',
-                };
-            };
-
-            const [inputs, setInputs] = useState(loadStoredData);
-            const [data, setData] = useState(loadStoredData);
-            
-            // If data was already present in storage, consider it submitted so the graph shows immediately
-            const [isSubmitted, setIsSubmitted] = useState(() => {
-                const saved = localStorage.getItem('goalSheetData');
-                return saved ? true : false;
+        function App() {
+            const [scores, setScores] = useState(() => {
+                const saved = localStorage.getItem('studentGoalData');
+                return saved ? JSON.parse(saved) : { projection: '', qt1: '', qt2: '', qt3: '' };
             });
-            
-            const [selectedQuestions, setSelectedQuestions] = useState([]);
 
-            // Save to local storage whenever 'data' gets updated so it continues to store the information
             useEffect(() => {
-                if (isSubmitted) {
-                    localStorage.setItem('goalSheetData', JSON.stringify(data));
-                }
-            }, [data, isSubmitted]);
+                localStorage.setItem('studentGoalData', JSON.stringify(scores));
+            }, [scores]);
 
-            // Safety Guard: Check if Recharts is loaded. If not, show loading state.
-            if (!window.Recharts) {
-                return (
-                    <div className="flex items-center justify-center min-h-screen">
-                        <div className="text-center p-8 bg-white rounded-xl shadow-sm border border-slate-200">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                            <p className="text-slate-600 font-medium">Loading Goal Sheet Tools...</p>
-                        </div>
-                    </div>
-                );
-            }
-
-            const { 
-                LineChart, Line, XAxis, YAxis, CartesianGrid, 
-                Tooltip, ResponsiveContainer, ReferenceLine, LabelList 
-            } = window.Recharts;
-
-            const handleInputChange = (e) => {
-                const { name, value } = e.target;
-                setInputs(prev => ({ ...prev, [name]: value }));
+            const handleChange = (e) => {
+                setScores({...scores, [e.target.name]: e.target.value});
             };
 
-            const handleGraphData = () => {
-                setData(inputs);
-                setIsSubmitted(true);
-            };
-
-            const chartData = useMemo(() => {
-                const q1 = parseInt(data.qt1);
-                const q2 = parseInt(data.qt2);
-                const q3 = parseInt(data.qt3);
-                
-                const points = [];
-                if (!isNaN(q1)) points.push({x: 0, y: q1});
-                if (!isNaN(q2)) points.push({x: 1, y: q2});
-                if (!isNaN(q3)) points.push({x: 2, y: q3});
-
-                let m = 0;
-                let b = null;
-
-                if (points.length >= 2) {
-                    const min = Math.min(...points.map(p => p.y));
-                    const max = Math.max(...points.map(p => p.y));
-                    const avg = points.reduce((sum, p) => sum + p.y, 0) / points.length;
-
-                    // Logic: If range is within 5%, it's level
-                    if (max - min <= 5) {
-                        m = 0;
-                        b = avg;
-                    } else {
-                        // Standard Linear Regression for the trend line
-                        const n = points.length;
-                        let sum_x = 0, sum_y = 0, sum_xy = 0, sum_xx = 0;
-                        points.forEach(p => {
-                            sum_x += p.x;
-                            sum_y += p.y;
-                            sum_xy += p.x * p.y;
-                            sum_xx += p.x * p.x;
-                        });
-                        m = (n * sum_xy - sum_x * sum_y) / (n * sum_xx - sum_x * sum_x);
-                        b = (sum_y - m * sum_x) / n;
-                    }
-                }
-
-                return [
-                    { name: 'QT 1', score: isNaN(q1) ? null : q1, trend: b !== null ? m * 0 + b : null },
-                    { name: 'QT 2', score: isNaN(q2) ? null : q2, trend: b !== null ? m * 1 + b : null },
-                    { name: 'QT 3', score: isNaN(q3) ? null : q3, trend: b !== null ? m * 2 + b : null },
-                ];
-            }, [data.qt1, data.qt2, data.qt3]);
-
-            const questions = [
-                {
-                    id: 1,
-                    title: "The Bounce Back",
-                    color: "text-green-500",
-                    icon: "trending-up",
-                    text: "Did your score go up or stay steady? What strategy (like showing work) helped you?"
-                },
-                {
-                    id: 2,
-                    title: "Finding the Gaps",
-                    color: "text-yellow-500",
-                    icon: "star",
-                    text: "Look at the gap between your line and your goal. Which math skill will you practice next?"
-                },
-                {
-                    id: 3,
-                    title: "Message to Future Me",
-                    color: "text-purple-500",
-                    icon: "message-square",
-                    text: "What advice would you give 'Future You' about handling test pressure?"
-                }
+            const chartData = [
+                { name: 'QT1', score: scores.qt1 ? parseInt(scores.qt1) : null },
+                { name: 'QT2', score: scores.qt2 ? parseInt(scores.qt2) : null },
+                { name: 'QT3', score: scores.qt3 ? parseInt(scores.qt3) : null }
             ];
 
-            const toggleQuestion = (id) => {
-                if (selectedQuestions.includes(id)) {
-                    setSelectedQuestions(selectedQuestions.filter(q => q !== id));
-                } else if (selectedQuestions.length < 2) {
-                    setSelectedQuestions([...selectedQuestions, id]);
-                }
-            };
-
-            const Icon = ({ name, className }) => {
-                useEffect(() => {
-                    if (window.lucide) window.lucide.createIcons();
-                }, [name]);
-                return <i data-lucide={name} className={className}></i>;
-            };
-
             return (
-                <div className="min-h-screen p-4 md:p-8 flex flex-col items-center">
-                    <div className="w-full max-w-4xl space-y-6">
+                <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+                        <h1 className="text-2xl font-bold mb-6 text-center text-blue-800">GOAL SHEET PROGRESS</h1>
                         
-                        <header className="text-center space-y-2">
-                            <div className="inline-flex items-center justify-center p-3 bg-blue-100 rounded-full">
-                                <Icon name="award" className="w-8 h-8 text-blue-600" />
-                            </div>
-                            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">GOAL SHEET PROGRESS</h1>
-                            <p className="text-slate-600">Enter your numbers, then click "Complete" to see your results!</p>
-                        </header>
-
-                        {/* Input Grid & Submit Button */}
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {[
-                                    { label: "PROJECTION SCORE", name: "projection", color: "border-amber-400" },
-                                    { label: "QT1 Score", name: "qt1", color: "border-blue-400" },
-                                    { label: "QT2 Score", name: "qt2", color: "border-blue-400" },
-                                    { label: "QT3 Score", name: "qt3", color: "border-blue-400" }
-                                ].map((field) => (
-                                    <div key={field.name} className="flex flex-col space-y-1">
-                                        <label className="text-xs font-bold text-slate-500 uppercase">{field.label}</label>
-                                        <select
-                                            name={field.name}
-                                            value={inputs[field.name]}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-3 text-lg font-semibold rounded-xl border-2 outline-none focus:ring-2 focus:ring-blue-500 transition-all bg-white cursor-pointer ${field.color}`}
-                                        >
-                                            <option value="" disabled>Select</option>
-                                            {Array.from({ length: 101 }, (_, i) => i).map(num => (
-                                                <option key={num} value={num.toString()}>{num}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="flex justify-center pt-2">
-                                <button 
-                                    onClick={handleGraphData}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-xl shadow-lg hover:shadow-xl active:scale-95 transition-all flex items-center gap-2"
-                                >
-                                    <Icon name="bar-chart-2" className="w-5 h-5" />
-                                    Complete Data Entry & Graph
-                                </button>
-                            </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                            {[
+                                { label: "PROJECTION SCORE", name: "projection" },
+                                { label: "QT1 SCORE", name: "qt1" },
+                                { label: "QT2 SCORE", name: "qt2" },
+                                { label: "QT3 SCORE", name: "qt3" }
+                            ].map((item) => (
+                                <div key={item.name} className="flex flex-col">
+                                    <label className="text-xs font-bold text-slate-500 mb-1">{item.label}</label>
+                                    <select 
+                                        name={item.name} 
+                                        value={scores[item.name]} 
+                                        onChange={handleChange}
+                                        className="p-2 border-2 border-blue-100 rounded-lg focus:border-blue-500 outline-none bg-white"
+                                    >
+                                        <option value="">Select</option>
+                                        {[...Array(101).keys()].map(n => <option key={n} value={n}>{n}</option>)}
+                                    </select>
+                                </div>
+                            ))}
                         </div>
 
-                        {/* Chart Area */}
-                        <div className="bg-white p-6 rounded-2xl shadow-md border border-slate-200 h-80 md:h-96 w-full relative">
-                            {!isSubmitted && (
-                                <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[2px] rounded-2xl flex items-center justify-center">
-                                    <div className="bg-white p-4 rounded-xl shadow-lg border border-blue-100 text-center animate-bounce">
-                                        <p className="text-blue-600 font-bold">Waiting for your scores! ↑</p>
-                                    </div>
-                                </div>
-                            )}
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData} margin={{ top: 30, right: 30, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                    <XAxis 
-                                        dataKey="name" 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{fill: '#94a3b8', fontSize: 12, fontWeight: 600}}
-                                        dy={10}
-                                    />
-                                    <YAxis 
-                                        domain={[0, 100]} 
-                                        axisLine={false} 
-                                        tickLine={false} 
-                                        tick={{fill: '#94a3b8', fontSize: 12}}
-                                    />
-                                    <Tooltip 
-                                        cursor={{ stroke: '#e2e8f0', strokeWidth: 2 }}
-                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                    />
-                                    
-                                    {isSubmitted && data.projection !== '' && (
-                                        <ReferenceLine y={parseInt(data.projection)} stroke="#FFD700" strokeWidth={4} strokeDasharray="8 4">
-                                            <LabelList position="top" fill="#b45309" value="PROJECTION GOAL" fontSize={10} fontWeight={800} offset={10} />
-                                        </ReferenceLine>
+                        <div className="h-64 w-full">
+                            <ResponsiveContainer>
+                                <LineChart data={chartData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="name" />
+                                    <YAxis domain={[0, 100]} />
+                                    <Tooltip />
+                                    {scores.projection && (
+                                        <ReferenceLine y={parseInt(scores.projection)} stroke="orange" strokeDasharray="3 3" label="Goal" />
                                     )}
-
-                                    {isSubmitted && (
-                                        <Line 
-                                            type="monotone" 
-                                            dataKey="trend" 
-                                            stroke="#a855f7" 
-                                            strokeWidth={3} 
-                                            strokeDasharray="6 6"
-                                            dot={false}
-                                            activeDot={false}
-                                            animationDuration={800}
-                                            name="Trend Line"
-                                        />
-                                    )}
-
-                                    {isSubmitted && (
-                                        <Line 
-                                            type="monotone" 
-                                            dataKey="score" 
-                                            stroke="#3b82f6" 
-                                            strokeWidth={5} 
-                                            dot={{ r: 7, fill: '#3b82f6', strokeWidth: 3, stroke: '#fff' }}
-                                            activeDot={{ r: 9, strokeWidth: 0 }}
-                                            animationDuration={800}
-                                            connectNulls
-                                            name="Actual Score"
-                                        />
-                                    )}
+                                    <Line type="monotone" dataKey="score" stroke="#2563eb" strokeWidth={4} connectNulls />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
-
-                        {/* Reflection Section */}
-                        <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
-                            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                                <div className="flex items-center gap-2">
-                                    <Icon name="book-open" className="w-6 h-6 text-blue-500" />
-                                    <h2 className="text-xl font-bold">Character Reflection</h2>
-                                </div>
-                                <span className="text-xs font-bold px-3 py-1 bg-blue-50 text-blue-600 rounded-full">
-                                    Pick {Math.max(0, 2 - selectedQuestions.length)} more
-                                </span>
-                            </div>
-
-                            <div className="grid md:grid-cols-3 gap-4">
-                                {questions.map((q) => (
-                                    <button 
-                                        key={q.id}
-                                        onClick={() => toggleQuestion(q.id)}
-                                        className={`text-left p-4 rounded-xl border-2 transition-all ${
-                                            selectedQuestions.includes(q.id) 
-                                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' 
-                                            : 'border-slate-100 bg-slate-50 hover:border-slate-200'
-                                        }`}
-                                    >
-                                        <div className="flex items-center gap-2 mb-2 font-bold text-slate-900 text-sm">
-                                            <Icon name={q.icon} className={`w-4 h-4 ${q.color}`} />
-                                            {q.title}
-                                        </div>
-                                        <p className="text-xs text-slate-500 leading-relaxed">{q.text}</p>
-                                    </button>
-                                ))}
-                            </div>
-
-                            <div className="space-y-4">
-                                {selectedQuestions.map(id => {
-                                    const q = questions.find(item => item.id === id);
-                                    return (
-                                        <div key={id} className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                                            <label className="text-xs font-black text-slate-400 uppercase tracking-widest">{q.title}</label>
-                                            <textarea 
-                                                placeholder="Write your answer here..."
-                                                className="w-full p-4 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none h-24 transition resize-none"
-                                            />
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             );
-        };
+        }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
