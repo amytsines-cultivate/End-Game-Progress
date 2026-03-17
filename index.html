@@ -17,7 +17,6 @@
         }
         .header-container { text-align: center; margin-bottom: 30px; }
         h1 { margin: 0; font-size: 2.5rem; letter-spacing: 1px; color: #1a1a1a; }
-        h1 span { font-weight: 300; color: #666; } /* Optional text styling */
         .subtitle { font-size: 1.1rem; color: #555; text-transform: uppercase; letter-spacing: 3px; margin-top: 5px; }
 
         .container { 
@@ -26,37 +25,41 @@
             border-radius: 12px; 
             box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
             width: 100%; 
-            max-width: 700px; 
+            max-width: 750px; 
         }
         .input-grid { 
             display: grid; 
-            /* Updated to 3 columns for 3 quarter inputs */
-            grid-template-columns: repeat(3, 1fr); 
-            gap: 20px; 
+            grid-template-columns: repeat(4, 1fr); 
+            gap: 15px; 
             margin-bottom: 25px; 
         }
+        /* Mobile responsive adjustment */
+        @media (max-width: 600px) { .input-grid { grid-template-columns: 1fr 1fr; } }
+
         .field { display: flex; flex-direction: column; }
-        label { font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #666; }
+        .field.gold { grid-column: span 4; margin-bottom: 10px; } /* Highlight the goal input */
+        @media (max-width: 600px) { .field.gold { grid-column: span 2; } }
+
+        label { font-size: 0.75rem; font-weight: bold; margin-bottom: 5px; color: #666; }
         input { 
             padding: 10px; 
             border: 2px solid #e0e0e0; 
             border-radius: 6px; 
             font-size: 1rem;
-            transition: border-color 0.3s;
         }
-        input:focus { outline: none; border-color: #007bff; }
+        input:focus { outline: none; border-color: #FFD700; }
         
         button { 
             width: 100%; 
-            padding: 12px; 
+            padding: 15px; 
             background: #222; 
             color: white; 
             border: none; 
             border-radius: 6px; 
-            font-size: 1rem; 
+            font-size: 1.1rem; 
             font-weight: bold;
             cursor: pointer; 
-            transition: background 0.3s;
+            margin-top: 10px;
         }
         button:hover { background: #444; }
         canvas { margin-top: 30px; }
@@ -71,17 +74,21 @@
 
 <div class="container">
     <div class="input-grid">
+        <div class="field gold">
+            <label style="color: #b8860b;">GOLD PROJECTION (GOAL %)</label>
+            <input type="number" id="projection" value="85">
+        </div>
         <div class="field">
             <label>QUARTER 1</label>
-            <input type="number" id="qt1" value="30">
+            <input type="number" id="qt1" value="25">
         </div>
         <div class="field">
             <label>QUARTER 2</label>
-            <input type="number" id="qt2" value="65">
+            <input type="number" id="qt2" value="40">
         </div>
         <div class="field">
             <label>QUARTER 3</label>
-            <input type="number" id="qt3" value="85">
+            <input type="number" id="qt3" value="60">
         </div>
     </div>
     
@@ -94,14 +101,13 @@
     let myChart;
 
     function updateChart() {
-        // Get the values for each quarter
+        const projection = document.getElementById('projection').value;
         const qt1 = document.getElementById('qt1').value;
         const qt2 = document.getElementById('qt2').value;
         const qt3 = document.getElementById('qt3').value;
 
         const ctx = document.getElementById('myChart').getContext('2d');
 
-        // Destroy previous chart if it exists
         if (myChart) { myChart.destroy(); }
 
         myChart = new Chart(ctx, {
@@ -110,11 +116,83 @@
                 labels: ['Quarter 1', 'Quarter 2', 'Quarter 3'],
                 datasets: [
                     {
-                        label: 'Quarterly Progress',
+                        label: 'Actual Progress',
                         data: [qt1, qt2, qt3],
-                        borderColor: '#007bff', // Distinct Blue for progress
-                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        borderColor: '#333',
+                        backgroundColor: 'rgba(51, 51, 51, 0.1)',
                         borderWidth: 4,
+                        pointRadius: 6,
                         pointBackgroundColor: '#fff',
-                        pointBorderWidth: 2,
-                        point
+                        zIndex: 10 // Keep progress on top
+                    },
+                    {
+                        label: 'Gold Projection',
+                        data: [projection, projection, projection],
+                        borderColor: '#FFD700',
+                        borderWidth: 5,
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                    /* CONSTANT ZONE LINES */
+                    {
+                        label: 'Purple Zone (78%)',
+                        data: [78, 78, 78],
+                        borderColor: 'purple',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: 'Blue Zone (58%)',
+                        data: [58, 58, 58],
+                        borderColor: 'blue',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: 'Green Zone (38%)',
+                        data: [38, 38, 38],
+                        borderColor: 'green',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    },
+                    {
+                        label: 'Orange Zone (27%)',
+                        data: [27, 27, 27],
+                        borderColor: 'orange',
+                        borderDash: [5, 5],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { 
+                        beginAtZero: true, 
+                        max: 100,
+                        title: { display: true, text: 'Percentage Score' }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, padding: 15 }
+                    }
+                }
+            }
+        });
+    }
+
+    updateChart();
+</script>
+
+</body>
+</html>
